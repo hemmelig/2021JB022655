@@ -1,0 +1,79 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# This script produces Figure 5 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 29 January 2020
+# Updated: 10 October 2021
+# -----------------------------------------------------------------------------
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+GMTDATA=$ICELAND/a_gmt/data_files
+TEMPLATES=$ICELAND/a_gmt/scripts
+out=$PWD/plots/figure5
+! [ -d plots ] && mkdir plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+# --- GMT settings ---
+bash $TEMPLATES/defaults.gmt
+gmt set MAP_FRAME_PEN 1.2p
+
+# --- Station files ---
+STS_USED=$PWD/../data/stations/used.stations
+
+# --- Define plot region and projection ---
+region=-16.8808/-16.1148/64.9470/65.2520
+proj=M25c
+gmt mapproject -R$region -J$proj -W > tmp
+read w h < tmp
+
+# --- Topography Image ---
+echo "Plotting topography image..."
+gmt makecpt -C$GMTDATA/cpt/grey_poss.cpt -T-2000/2500/1 > topo.cpt
+gmt grdimage -J -R $GMTDATA/grd/IcelandDEM_20m.grd -I$GMTDATA/grd/IcelandDEM_20mI.grd -Ctopo.cpt $open
+bash $TEMPLATES/add_lakes.gmt $out
+bash $TEMPLATES/add_all_fissureswarms.gmt $out gray
+bash $TEMPLATES/add_sNVZ_fractures.gmt $out
+bash $TEMPLATES/add_calderas.gmt $out
+
+# --- Plot raypaths ---
+echo "Plotting raypaths..."
+gmt psxy $PWD/raypaths/raypaths.xy -J -R -Wthinnest,70/70/70 -t85 $add
+
+# --- Plot seismic stations ---
+echo "Plotting seismic stations..."
+awk -F "," '{print $2,$3}' $STS_USED | gmt psxy -J -R -St0.4 -G190/190/190 -Wthinnest,black $add
+
+# --- Add simple annotations
+echo "Plotting annotations..."
+echo "-16.8 65.05 Askja" | gmt pstext -R -J -F+f18p,Helvetica-Bold,white,=2p,black+a0+jCM $add
+echo "-16.8 65.05 Askja" | gmt pstext -R -J -F+f18p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.375 65.19 Herðubreið" | gmt pstext -R -J -F+f18p,Helvetica-Bold,white,=2p,black+a0+jCM $add
+echo "-16.375 65.19 Herðubreið" | gmt pstext -R -J -F+f18p,Helvetica-Bold,white+a0+jCM $add
+
+# --- Plot north arrow ---
+echo "Plotting compass arrow..."
+gmt psbasemap -J -R -Tdx2c/$(echo "$h-3" | bc)c+w2c+l,,,N --FONT_ANNOT=16p,Helvetica $add
+gmt psbasemap -J -R -Lx$(echo "$w-0.5" | bc)c/1c+c65+w10k+lkm+jBR -F+p1p,black+gwhite+c0.1c/0.1c/0.25c/0.8c --MAP_TICK_PEN_PRIMARY=2p --FONT_ANNOT=16p,Helvetica $add
+gmt psbasemap -J -R --FONT_ANNOT=16p,Helvetica -Bxa0.25df0.125d -Bya0.1df0.05d -BSWne $close
+
+# --- Remove temporary files ---
+echo "Removing temporary files..."
+rm tmp *.cpt gmt.*
+
+# --- Convert ps file to pdf and png ---
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+echo "Complete."
