@@ -1,0 +1,214 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# This script produces Figure 1 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 1 October 2020
+# Updated: 8 October 2021
+# -----------------------------------------------------------------------------
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+TEMPLATES=$ICELAND/a_gmt/scripts
+GMTDATA=$ICELAND/a_gmt/data_files
+METADATA=$PWD/../data
+ROSES=$METADATA/surface_fractures
+out=$PWD/plots/figure1
+! [ -d plots ] && mkdir plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+# --- GMT settings ---
+bash $TEMPLATES/defaults.gmt
+gmt set FONT_TITLE 8p, Helvetica
+gmt set FONT_ANNOT 8p, Helvetica
+gmt set FONT_LABEL 8p, Helvetica
+gmt set MAP_TICK_LENGTH 0.15c
+
+# --- Station files ---
+STS_USED=$METADATA/stations/used.stations
+
+# --- Eearthquake files ---
+EQS=$METADATA/earthquakes/2009-2018_wmag_eqs.txt
+EQS_USED=$METADATA/earthquakes/used.eqs
+
+# --- Define plot region and projection ---
+WEST=-17.2
+EAST=-15.8
+SOUTH=64.75
+NORTH=65.35
+region=$WEST/$EAST/$SOUTH/$NORTH
+proj=M12c
+gmt mapproject -R$region -J$proj -W > tmp
+read w h < tmp
+
+# --- Plot the LatLong coordinate system ---
+echo "Plotting Basemap..."
+gmt psbasemap -R$region -J$proj -Bxa0.25df0.125d -Bya0.1df0.05d -BsWne -X4c -Y8c $open
+
+# --- Topography Image ---
+echo "Plotting topography image..."
+gmt makecpt -C$GMTDATA/cpt/grey_poss.cpt -T-2000/2500/1 -Z > topo.cpt
+gmt grdimage -J -R $GMTDATA/grd/IcelandDEM_20m.grd -I$GMTDATA/grd/IcelandDEM_20mI.grd -Ctopo.cpt $add
+
+# --- Plot lakes ---
+bash $TEMPLATES/add_lakes.gmt $out
+
+# --- Plot big rivers ---
+echo "Plotting rivers..."
+gmt psxy -J -R $GMTDATA/xy/big_rivers.xy -W0.7p,lightblue $add
+gmt psxy -J -R $GMTDATA/xy/rivers.xy -W0.1p,lightblue $add
+
+# --- Plot fissure swarms ---
+echo "Plotting fissure swarms..."
+gmt psxy -J -R $GMTDATA/fissures/fissures_fill.xy -Gorange -t80+f $add
+gmt psxy -J -R $GMTDATA/fissures/askja_fill.xy -G136/86/167 -t80+f $add
+gmt psxy -J -R $GMTDATA/fissures/kverkfjoll_fill.xy -G44/162/95 -t80+f $add
+gmt psxy -J -R $GMTDATA/xy/fisswarms_out.xy -Wthin,black $add
+
+# --- Plot Askja caldera complex ---
+echo "Plotting Askja caldera complex..."
+gmt psxy -J -R $GMTDATA/xy/askjacalderas.xy -Sf0.10/0.085c+l -W0.5p,black $add
+
+# --- Plot central volcano outlines
+echo "Plotting central volcano outlines..."
+gmt psxy -J -R $GMTDATA/xy/centralvolc_all.xy -W0.75p,black,- $add
+
+# --- Plot rift spreading direction
+echo "Plotting spreading direction..."
+echo "-16.125 64.97 109 1.5" | gmt psxy -J -R -SV0.5c+gblack+a50d+e -Wthickest,black -N $add
+echo "-17. 65.1 289 1.5" | gmt psxy -J -R -SV0.5c+gblack+a50d+e -Wthickest,black -N $add
+
+# --- Plot surface fractures ---
+echo "Plotting surface fractures..."
+gmt psxy -J -R $GMTDATA/AstaRutData/fractures1.xy.gmt -Sf0.10/0.05p -Wthinnest,black $add
+gmt psxy -J -R $GMTDATA/AstaRutData/fractures2.xy.gmt -Sf0.10/0.05p -Wthinnest,black $add
+gmt psxy -J -R $GMTDATA/AstaRutData/fractures3.xy.gmt -Sf0.10/0.05p -Wthinnest,black $add
+gmt psxy -J -R $GMTDATA/AstaRutData/fractures4.xy.gmt -Sf0.10/0.05p -Wthinnest,black $add
+gmt psxy -J -R $GMTDATA/AstaRutData/fractures5.xy.gmt -Sf0.10/0.05p -Wthinnest,black $add
+
+# --- Plot glaciers ---
+echo "Plotting glaciers..."
+gmt psclip -J -R $GMTDATA/xy/joklar3.xy $add
+gmt grdimage -J -R $GMTDATA/grd/IcelandDEM_20m_Askja_Zoom.grd -C$GMTDATA/cpt/TW_glacier_topo.cpt -I$GMTDATA/grd/IcelandDEM_20m_Askja_ZoomI_GLACIER.grd $add
+gmt psclip -C $add
+gmt psxy $GMTDATA/xy/joklar3.xy -J -R -Wthinner,black -L $add
+
+# --- Plot earthquakes ---
+echo "Plotting earthquakes..."
+gmt makecpt -Cmagma -A40 -T-3/15/0.5  > eq.cpt
+awk 'FNR > 1 {if ($11>-0.5 && $11<30) {print $10,$9,$11}}' $EQS | gmt psxy -J -R -Sc0.01 -G170/170/170 $add
+awk -F "," 'FNR > 1 {if ($3<10) {print $1,$2,$3}}' $EQS_USED | gmt psxy -J -R -Sc0.03 -Ceq.cpt $add
+
+# --- Plot seismic stations ---
+echo "Plotting seismic stations..."
+awk -F "," 'FNR > 1 {if ($4=="6TD") {print $2,$3,$1}}' $STS_USED | gmt psxy -J -R -St0.25 -G255/103/110 -Wthinnest,black@30 $add
+awk -F "," 'FNR > 1 {if ($4=="IMO") {print $2,$3,$1}}' $STS_USED | gmt psxy -J -R -Ss0.25 -G84/39/143 -Wthinnest,black@30 $add
+
+# --- Add simple annotations
+echo "Plotting annotations..."
+echo "-16.8 65.105 Askja" | gmt pstext -R -J -F+f12p,Helvetica-Bold,white,=2p,black+a0+jCM $add
+echo "-16.8 65.105 Askja" | gmt pstext -R -J -F+f12p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.77 65.032 Öskjuvatn" | gmt pstext -R -J -F+f7p,Helvetica-Bold,white,=1.8p,black+a0+jCM $add
+echo "-16.77 65.032 Öskjuvatn" | gmt pstext -R -J -F+f7p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.125 64.9 Kverkfjöll" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=1.6p,black+a0+jCM $add
+echo "-16.125 64.9 Kverkfjöll" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.125 64.879 rift segment" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=1.6p,black+a0+jCM $add
+echo "-16.125 64.879 rift segment" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.93 64.78 Vatnajökull" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=1.8p,black+a0+jCM $add
+echo "-16.93 64.78 Vatnajökull" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white+a0+jCM $add
+echo "b" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTL -D0.125c/-0.125c -Gwhite -Wthin,black $add
+
+# --- Plot legend ---
+echo "Plotting legend..."
+gmt set FONT_ANNOT 12p, Helvetica
+gmt pslegend -J -R -Dx$(echo "$w+2.9" |bc)c/-2.75c+w2.75c/2.15c+jCM+l1.2 -O -K << END >> $out.ps
+N 2
+G 0.15c
+S -0.1c c 0.02c 255/255/255 thin,black 0.4c Earthquake
+G 0.15c
+S -0.1c t 0.4c 255/255/255 thin,black 0.4c Seismometer
+N 1
+M - 65 20+lkm+jt
+END
+gmt set FONT_ANNOT 8p, Helvetica
+
+# --- Plot colour scale ---
+echo "Plotting colour scale..."
+gmt psscale -Dx0.75c/$(echo "$h+1" | bc)c+jBL+w8.5c/0.25c+h+ml -Ceq.cpt -Bx5+lDepth -By+lkm -G-3/15 --FONT_LABEL=10p $add
+
+# --- Plot x and z slice ---
+echo "Plotting X-Z slice..."
+xz_proj=X12c/-4c
+xz_region=$WEST/$EAST/-3/30
+xz_ticks=0.25:Longitude:/5:Depth/km:WSen
+awk '{if ($11>-0.5 && $11<30) {print $10,$11,$11}}' $EQS | gmt psxy -J$xz_proj -R$xz_region -Bxa0.25f0.125+l"Longitude" -Bya5f1+l"Depth / km" -BWSen -Sc0.01 -G170/170/170 -Y-4.5c --MAP_FRAME_PEN=0.6p -h1 $add
+awk -F "," '{if ($3<10) {print $1,$3,$3}}' $EQS_USED | gmt psxy -J -R -Sc0.04 -Ceq.cpt $add
+gmt project -G0.1 -C$WEST/65.1 -E$EAST/65.1 -Q -Lw > xzsection.txt
+gmt grdtrack xzsection.txt -G$GMTDATA/grd/IcelandDEM_20m.grd > xzsection_topo.txt
+awk '{print $1,-0.001*$4}' xzsection_topo.txt | gmt psxy -R -J -N -Wthin $add
+echo "c" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTL -D0.125c/-0.125c -Gwhite -Wthin,black $add
+
+# --- Plot north arrow ---
+echo "Plotting compass arrow..."
+gmt psbasemap -R$region -J$proj -Tdx$(echo "$w-1" | bc)c/$(echo "$h-1.5" | bc)c+w1c+l,,,N -Y4.5c --FONT_TITLE=20 --MAP_TITLE_OFFSET=0.2c $add
+
+# --- Plot inset map of Iceland ---
+# --- Determine size of map insert ---
+echo "Plotting inset of Iceland..."
+Rg=-25/-13/63.1/66.7
+Jg=M6c
+gmt pscoast -R$Rg -J$Jg -B0 -B+gwhite -Df -N1 -W -A5000 -X$(echo "$w-1.5" | bc)c -Y$(echo "$h-2.5" | bc)c --MAP_FRAME_PEN=0.6p --MAP_FRAME_TYPE=plain $add
+gmt psxy -J -R $GMTDATA/xy/fisswarms_fil.xy -Gorange -t85+f $add
+gmt psxy -J -R $GMTDATA/xy/fisswarms_out.xy -Wthinnest,black $add
+gmt psxy $GMTDATA/xy/joklar3.xy -J -R -Gwhite -Wthinnest,black -L $add
+echo "-15.4 65.6 NVZ" | gmt pstext -R -J -F+f9p,Helvetica-Bold,white,=2p,white+a0+jCM $add
+echo "-15.4 65.6 NVZ" | gmt pstext -R -J -F+f9p,Helvetica,black+a0+jCM $add
+echo "-19.2 64.35 EVZ" | gmt pstext -R -J -F+f9p,Helvetica-Bold,white,=2p,white+a0+jCM $add
+echo "-19.2 64.35 EVZ" | gmt pstext -R -J -F+f9p,Helvetica,black+a0+jCM $add
+echo "-22 64.35 WVZ" | gmt pstext -R -J -F+f9p,Helvetica-Bold,white,=2p,white+a0+jCM $add
+echo "-22 64.35 WVZ" | gmt pstext -R -J -F+f9p,Helvetica,black+a0+jCM $add
+echo "-18.8 65.1 286 1" | gmt psxy -J -R -SV0.3c+gblack+a50d+e -W0.8p,black -N $add
+echo "-15.4. 64.7 106 1" | gmt psxy -J -R -SV0.3c+gblack+a50d+e -W0.8p,black -N $add
+
+gmt psxy -J -R $GMTDATA/xy/centralvolc_all.xy -W0.2p,black,- $add
+gmt psbasemap -R -J -D$region -F+p1p,255/51/51 $add
+echo "a" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTL -D0.125c/-0.125c $add
+
+# --- Add rose plots ---
+gmt set MAP_FRAME_PEN 0.6p
+echo "Plotting Askja rose plot..."
+gmt psrose $ROSES/Askja.rose -A15 -B0.25g0.25/45g22.5 -R0/1/0/360 -JX5c -L -F -X2c -Y-5.25c -Sn2.5+a -T -W0.5p -G136/86/167@30 $add
+gmt psxy $ROSES/Askja.orientation -R-1/1/-1/1 -JX5c -W1.5p,black $add
+echo "n = 8872" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=2p,white+cTL -D0.45c/-1.4c $add
+echo "n = 8872" | gmt pstext -R -J -F+f10p,Helvetica-Bold+cTL -D0.45c/-1.4c $add
+echo "18.4@." | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=2p,white+cTR -D-0.4c/-0.4c $add
+echo "18.4@." | gmt pstext -R -J -F+f10p,Helvetica-Bold+cTR -D-0.4c/-0.4c $add
+echo "d" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTL -D0.125c/-0.125c $add
+echo "Plotting Kverkfjoll rose plot..."
+gmt psrose $ROSES/Kverkfjoll1.rose -A15 -B0.25g0.25/45g22.5 -R0/1/0/360 -JX5c -L -F -Y-5.5c -Sn2.5+a -T -W0.5p -G44/162/95@30 $add
+gmt psxy $ROSES/Kverkfjoll1.orientation -R-1/1/-1/1 -JX5c -W1.5p,black $add
+echo "n = 554" | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=2p,white+cTL -D0.45c/-1.4c $add
+echo "n = 554" | gmt pstext -R -J -F+f10p,Helvetica-Bold+cTL -D0.45c/-1.4c $add
+echo "23.9@." | gmt pstext -R -J -F+f10p,Helvetica-Bold,white,=2p,white+cTR -D-0.4c/-0.4c $add
+echo "23.9@." | gmt pstext -R -J -F+f10p,Helvetica-Bold+cTR -D-0.4c/-0.4c $add
+echo "e" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTL -D0.125c/-0.125c $close
+
+# --- Remove temporary files ---
+echo "Removing temporary files..."
+rm tmp *.cpt gmt.* *section*
+
+# --- Convert ps file to pdf and png ---
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+echo "Complete."
