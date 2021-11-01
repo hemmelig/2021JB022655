@@ -1,0 +1,73 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# This script produces Figure 4 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 2 September 2019
+# Updated: 9 October 2021
+# -----------------------------------------------------------------------------
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+TEMPLATES=$ICELAND/a_gmt/scripts
+RESULTS=$PWD/../data/filtered_shallow_results_sww.summ
+ORIENTATIONS=$PWD/average_strikes
+out=$PWD/plots/figure4
+! [ -d plots ] && mkdir plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+# --- GMT settings ---
+bash $TEMPLATES/defaults.gmt
+gmt set FONT_LABEL 18p, Helvetica
+
+# ----- Plot histogram -----
+echo "Plotting fast orientation circular histogram..."
+awk -F "," '{print $20}' $RESULTS | gmt psrose -A15 -B0.25g0.25/30g15 -i0 -F -R0/1/0/360 -JX20c -L-/-/-/N -S+a -T -W1 -G177/0/38 -t45+f $open
+gmt psxy $ORIENTATIONS/askja_average.orientation -R-1/1/-1/1 -JX20c -W3,136/86/167 $add
+gmt psxy $ORIENTATIONS/kverkfjoll_average.orientation -R -J -W3,44/162/95 $add
+gmt psxy $ORIENTATIONS/nesw_faults.orientation -R -J -W3,gray $add
+gmt psxy $ORIENTATIONS/ns_faults.orientation -R -J -W3,gray $add
+gmt psxy $ORIENTATIONS/plate_spreading_models.orientation -R -J -W2.5,black,- $add
+# gmt psxy $ORIENTATIONS/drouin_plate_spreading.orientation -R -J -W2.5,black,- $add
+gmt psxy $ORIENTATIONS/average_sww.orientation -R -J -W3,black $add
+
+# --- Add average values ---
+echo "Plotting average values..."
+# N-S faults
+echo "N-S" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-9.5c/-0.6c $add
+echo "N-S" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTR -D-9.5c/-0.6c $add
+# NE-SW faults
+echo "NE-SW" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-2.1c/-2.9c $add
+echo "NE-SW" | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTR -D-2.1c/-2.9c $add
+# Perpendicular to plate spreading
+echo "16.4@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-6.38c/-0.01c $add
+echo "16.4@." | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTR -D-6.38c/-0.01c $add
+# Askja surface features
+echo "18.4@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-5.55c/-0.4c $add
+echo "18.4@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,136/86/167+cTR -D-5.55c/-0.4c $add
+# Kverkfjoll surface features
+echo "23.9@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-4.7c/-1.4c $add
+echo "23.9@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,44/162/95+cTR -D-4.7c/-1.4c $add
+# Average
+echo "13.9@." | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,white+cTR -D-7.9c/-0.8c $add
+echo "13.9@." | gmt pstext -R -J -F+f14p,Helvetica-Bold+cTR -D-7.9c/-0.8c $close
+
+# --- Remove temporary files ---
+echo "Removing temporary files..."
+rm gmt.*
+
+# --- Convert ps file to pdf and png ---
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+echo "Complete."
