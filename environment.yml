@@ -1,0 +1,13 @@
+name: jgr_2021JB022655
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - matplotlib=3.4.3
+  - numpy=1.21.3
+  - obspy=1.2.2
+  - pandas=1.3.4
+  - pygmt=0.4.1
+  - pyproj=3.2.1
+  - python=3.9.7
+  - scipy=1.7.1
