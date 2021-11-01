@@ -1,0 +1,67 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# This script produces Figure 3 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 1 October 2020
+# Updated: 8 October 2021
+# ---------------------------------------------------------------------------
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+TEMPLATES=$ICELAND/a_gmt/scripts
+out=$PWD/plots/figure3
+! [ -d plots ] && mkdir gmt_plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+# --- GMT settings ---
+bash $TEMPLATES/defaults.gmt
+gmt set FONT_ANNOT 10p, Helvetica
+gmt set FONT_LABEL 12p, Helvetica
+gmt set MAP_FRAME_PEN 0.6p
+gmt set MAP_TICK_LENGTH 0.12c
+
+# --- Define plot region and projection ---
+bounds=0/0.2/-1/9
+proj=X9c/-13.5c
+
+# Add models
+gmt psxy $PWD/models/finite_layer_model.txt -R$bounds -J$proj -BsWNe -By1f0.25d+l"Depth b.s.l. / km" -Bx0.05f0.01d+l"Delay time / s" -W1p,110/110/110,- $open
+# gmt psxy -R -J $PWD/models/halfspace_model.txt -W0.75p,grey,- $add
+# gmt psxy -R -J $PWD/models/spline_model.txt -W1p,"#850749",- $add
+gmt psxy -R -J $PWD/models/exp_model.txt -W1p,110/110/110,-. $add
+
+# Plot data and scatter
+# gmt psxy results/1d_means.txt -R -J -Ex+a+p0.8p,"#9ebcda" $add
+# gmt psxy results/1d_means.txt -R -J -Ss0.15c -G"#9ebcda" $add
+gmt psxy results/1d_means_nomyvo.txt -R -J -Ex+a+p0.8p,black $add
+gmt psxy results/1d_means_nomyvo.txt -R -J -Ss0.15c -Gblack $add
+
+# Add data scatter
+gmt psxy results/data_scatter.txt -R -J -Sc0.08c -W0.01p,black@100 -Ggrey@95 $add
+
+# Add average station elevation
+gmt psxy -R -J results/mean_elevation.txt -W0.75p,black@30,-- $add
+
+# Add histogram
+awk -F "," '{print $2}' results/data_scatter.txt | gmt pshistogram -R-1/9/0/700 -JX2.5c/-13.5c -X9c -T-1/9/0.25 -A -BSwnE -Bx1f0.25d -By250f125d+l"Number of measurements" -Ggrey $close
+
+# --- Remove temporary files ---
+echo "Removing temporary files..."
+rm gmt.*
+
+# --- Convert ps file to pdf and png ---
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+echo "Complete."
