@@ -1,0 +1,76 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# This script produces Figure 7 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 8 October 2020
+# Updated: 11 October 2021
+# -----------------------------------------------------------------------------
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+TEMPLATES=$ICELAND/a_gmt/scripts
+GMTDATA=$ICELAND/a_gmt/data_files
+METADATA=$PWD/../data
+out=$PWD/plots/figure7
+! [ -d plots ] && mkdir plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+bash $TEMPLATES/defaults.gmt
+
+# --- Station files ---
+STS=$METADATA/stations/used.stations
+
+# --- Grid file ---
+grd=$PWD/gridded_results/figure7_grid.xy
+
+# --- Results files ---
+gridded=$PWD/gridded_results/figure7_grid_data.bins
+
+# --- Define plot region and projection ---
+region=-16.8808/-16.1148/64.9470/65.2520  # west/east/south/north
+proj=M25c
+gmt mapproject -R$region -J$proj -W > tmp
+read w h < tmp
+
+echo "Plotting topography image..."
+gmt makecpt -C$GMTDATA/cpt/grey_poss.cpt -T-2000/2500/1 > topo.cpt
+gmt grdimage -J -R $GMTDATA/grd/IcelandDEM_20m.grd -I$GMTDATA/grd/IcelandDEM_20mI.grd -Ctopo.cpt $open
+bash $TEMPLATES/add_lakes.gmt $out
+bash $TEMPLATES/add_all_fissureswarms.gmt $out gray
+bash $TEMPLATES/add_sNVZ_fractures.gmt $out
+bash $TEMPLATES/add_calderas.gmt $out
+
+# --- Plot grid ---
+echo "Plotting grid..."
+gmt psxy -J -R $grd -Wthinnest,black@70 $add
+
+# --- Plot average results ---
+echo "Plotting average results..."
+gmt makecpt -Cmagma -T0/1/0.001 -Ic > fast.cpt
+awk '{if ($8<900) {print $5,$6,$9,$8,2.5,0.2}}' $gridded | gmt psxy -J -R -SJ -Cfast.cpt $add
+
+# --- Plot north arrow ---
+echo "Plotting compass arrow..."
+gmt psbasemap -J -R -Tdx2c/$(echo "$h-3" | bc)c+w2c+l,,,N --FONT_ANNOT=16p,Helvetica $add
+gmt psbasemap -J -R -Lx$(echo "$w-0.5" | bc)c/1c+c65+w10k+lkm+jBR -F+p1p,black+gwhite+c0.1c/0.1c/0.25c/2.5c --FONT_ANNOT=16p,Helvetica -Bxa0.25df0.125d -Bya0.1df0.05d -BSWne $add
+gmt psscale -J -R -Dx$(echo "$w-4" | bc)c/2.5c+jCM+w5c/0.4c+e+h+ml --MAP_TICK_LENGTH=0.1c -Cfast.cpt -Bpa0.25f0.125+l"Resultant vector" $close
+
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+# --- Remove temporary files ---
+echo "Removing temporary files..."
+rm tmp *.cpt gmt.*
+
+echo "Complete."
