@@ -1,0 +1,113 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# This script produces Figure 8 of:
+#
+#       On the origin of seismic anisotropy in the shallow crust of the
+#       Northern Volcanic Zone, Iceland
+#       Bacon, C.A., Johnson, J., White, R.S., and Rawlinson, N.
+#       Submitted to the Journal of Geophysical Research - Solid Earth
+#
+# Author: Conor Bacon
+# Date: 2 November 2020
+# Updated: 11 October 2021
+# -----------------------------------------------------------------------------
+
+if [ $# -eq 0 ]
+then
+  echo "No arguments supplied"
+  exit 1
+fi
+
+# --- i/o paths ---
+ICELAND=/home/conor/Documents/a_research/a_phd/a_iceland
+GMTDATA=$ICELAND/a_gmt/data_files
+METAFILES=$ICELAND/b_metafiles
+TEMPLATES=$ICELAND/a_gmt/scripts
+out=$PWD/plots/figure8_$1km
+! [ -d plots ] && mkdir plots
+[ -e $out.ps ] && rm $out.ps
+
+# --- EZ GMT ---
+open="-K > $out.ps"
+oneliner="> $out.ps"
+add="-O -K >> $out.ps"
+close="-O >> $out.ps"
+
+inp=$PWD/strain_files/strain_$1km.cou
+
+# --- GMT settings ---
+bash $TEMPLATES/defaults.gmt
+gmt gmtset COLOR_BACKGROUND blue
+gmt gmtset COLOR_FOREGROUND red
+
+# --- The colour zone ---
+clr_models=127/205/187
+
+# --- Define plot region and projection ---
+region=411140/447930/7203870/7237000
+ratio=1:160000
+proj=u28W/$ratio
+gmt mapproject -R$region -J$proj -W > tmp
+read w h < tmp
+
+echo "Making cpt..."
+gmt makecpt -Cpolar -T-2.5/2.5/0.05 > strain.cpt
+
+# --- Create overlay of strain field ---
+echo "Making grid file..."
+grep -v "Input" $inp | grep -v "dilatation" | grep -v "km" | awk '{print $1*1000+375130,$2*1000+7155290,$10*1000000}' > utm.cou
+gmt xyz2grd utm.cou -G${inp%cou}grd -R375130/465130/7155290/7275290 -I5000
+
+# --- Topography Image ---
+echo "Plotting topography image..."
+gmt makecpt -C$GMTDATA/cpt/grey_poss.cpt -T-2000/2500/1 > topo.cpt
+gmt grdimage -J$proj -R$region $GMTDATA/grd/IcelandDEM_20m.grd -I$GMTDATA/grd/IcelandDEM_20mI.grd -Ctopo.cpt $open
+
+# --- Plot strain grd image ---
+echo "Plotting strain field..."
+gmt grdimage ${inp%cou}grd -Cstrain.cpt -Jx$ratio -t10 -R -E -BNEsw $add
+
+# --- Plot basemap ---
+echo "Plotting basemap..."
+gmt psbasemap -R$region -J$proj -Bxa0.25df0.125d -Bya0.1df0.05d -BSWne $add
+
+bash $TEMPLATES/add_all_fissureswarms.gmt $out gray
+
+# --- Plot SHmax vectors ---
+echo "Plotting SHmax vectors..."
+gmt psxy -J -R SH_files/SHmax_$1km.xy -Sf0.10/0.05p -W2p,black $add
+
+bash $TEMPLATES/add_sNVZ_fractures.gmt $out
+bash $TEMPLATES/add_calderas.gmt $out
+
+# --- Plot modelled spreading centre ---
+echo "Plotting spreading centre..."
+gmt psxy -J -R a_inputs/rift_segments.txt -W5p,$clr_models@30 $add
+
+# --- Plot modelled Askja Mogi source ---
+echo "Plotting Askja mogi source..."
+gmt psxy -J -R a_inputs/askja_mogi.txt -Sc0.7c -G$clr_models@30 $add
+
+echo "Plotting segment names..."
+echo "-16.8 65.15 Askja" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=2p,black+a0+jCM $add
+echo "-16.8 65.15 Askja" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.8 65.14 rift segment" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=1.6p,black+a0+jCM $add
+echo "-16.8 65.14 rift segment" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.25 65.05 Kverkfjöll" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=1.6p,black+a0+jCM $add
+echo "-16.25 65.05 Kverkfjöll" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white+a0+jCM $add
+echo "-16.25 65.04 rift segment" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white,=1.6p,black+a0+jCM $add
+echo "-16.25 65.04 rift segment" | gmt pstext -R -J -F+f14p,Helvetica-Bold,white+a0+jCM $add
+
+# --- Plot basemap ---
+echo "Plotting basemap..."
+echo $w
+gmt psbasemap -J -R -Lx$(echo "$w-0.5" | bc)c/$(echo "$h-2.75" | bc)c+c65+w10k+lkm+jTR -F+p1p,black+gwhite+c0.1c/0.1c/0.25c/2.5c --MAP_TICK_PEN_PRIMARY=2p $add
+gmt psscale -J -R -Dx$(echo "$w-3.625" | bc)c/$(echo "$h-1.4" | bc)c+jCM+w5c/0.4c+e+h+ml --MAP_TICK_LENGTH=0.1c -Cstrain.cpt -Bpa2.5f1.25+l"Microstrain" $close
+
+# --- Cleanup ---
+rm tmp *.cpt gmt.* utm.cou
+
+# --- Convert ps file to pdf and png ---
+bash $TEMPLATES/convert2pdfpng.gmt $out
+
+echo "Complete."
