@@ -26,7 +26,6 @@ conda env create
 3. Add `mfast_summary.mplstyle` (a matplotlib stylesheet) to your `mpl_configdir` (usually found at `~/.config/matplotlib`)
 
 4. Optional: Install Helvetica font for Matplotlib
-```
 
 5. Navigate to each figure directory and run the `.gmt` (as `bash <script>.gmt`) or `.py` (as `python <script>.py`) scripts.
 
